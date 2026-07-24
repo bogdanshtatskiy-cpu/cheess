@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Chess Print Calculator</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Сюда позже нужно будет вставить скрипты Firebase -->
+    
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script> <!-- Добавлено Storage -->
 </head>
 <body>
     <div class="background-mesh"></div>
@@ -14,7 +19,7 @@
         <header class="glass-header">
             <h1>ChessCalc</h1>
             <nav>
-                <button class="nav-btn active" data-tab="view">Калькулятор</button>
+                <button class="nav-btn active" data-tab="view">Расчет</button>
                 <button class="nav-btn" data-tab="admin-resin">Смолы</button>
                 <button class="nav-btn" data-tab="admin-sets">Наборы</button>
             </nav>
@@ -24,65 +29,129 @@
             <!-- Вкладка: Просмотр и расчет -->
             <section id="view" class="tab-content active">
                 <div class="glass-card">
-                    <h2>Расчет стоимости набора</h2>
+                    <h2>Стоимость печати</h2>
+                    
+                    <div class="photo-preview-container" id="calc-photo-container" style="display: none;">
+                        <img id="calc-set-photo" src="" alt="Set Photo">
+                    </div>
+
                     <div class="input-group">
                         <label>Выберите набор:</label>
-                        <select id="select-set"></select>
+                        <select id="select-set" onchange="updateCalcPhoto()"><option>Загрузка...</option></select>
                     </div>
                     <div class="input-group">
-                        <label>Смола (Белые фигуры):</label>
+                        <label>Смола (Белые):</label>
                         <select id="select-resin-white"></select>
                     </div>
                     <div class="input-group">
-                        <label>Смола (Черные фигуры):</label>
+                        <label>Смола (Черные):</label>
                         <select id="select-resin-black"></select>
                     </div>
                     <button class="action-btn" onclick="calculateTotal()">Рассчитать</button>
                     
-                    <div id="results" class="results-container hidden">
-                        <!-- Сюда JS выведет результаты -->
+                    <div id="results" class="results-container hidden"></div>
+                </div>
+            </section>
+
+            <!-- Модальное окно входа -->
+            <div id="login-section" class="glass-card hidden">
+                <h2>Вход (Админ)</h2>
+                <div class="input-group"><input type="email" id="auth-email" placeholder="Email"></div>
+                <div class="input-group"><input type="password" id="auth-pass" placeholder="Пароль"></div>
+                <button class="action-btn" onclick="loginAdmin()">Войти</button>
+            </div>
+
+            <!-- Контейнер админ-панели -->
+            <div id="admin-workspace" class="hidden">
+                <div class="admin-header">
+                    <span id="admin-email-display"></span>
+                    <button onclick="logoutAdmin()" class="btn-small">Выйти</button>
+                </div>
+
+                <!-- Вкладка: СМОЛЫ -->
+                <section id="admin-resin" class="tab-content">
+                    <div class="glass-card">
+                        <h2 id="resin-form-title">Добавить смолу</h2>
+                        <div class="input-group"><input type="text" id="resin-brand" placeholder="Производитель (Anycubic, Elegoo...)"></div>
+                        <div class="input-group"><input type="text" id="resin-name" placeholder="Название (ABS-like, Clear...)"></div>
+                        <div class="input-group"><input type="text" id="resin-color" placeholder="Цвет"></div>
+                        <div class="input-group"><input type="number" id="resin-price" placeholder="Цена за 1кг (грн)"></div>
+                        <div class="input-group"><input type="number" step="0.01" id="resin-density" placeholder="Густота (g/cm³)"></div>
+                        
+                        <div class="form-actions">
+                            <button class="action-btn" id="btn-save-resin" onclick="saveResin()">Сохранить</button>
+                            <button class="action-btn btn-cancel hidden" id="btn-cancel-resin" onclick="cancelResinEdit()">Отмена</button>
+                        </div>
                     </div>
-                </div>
-            </section>
-
-            <!-- Вкладка: Добавление смолы (Админ) -->
-            <section id="admin-resin" class="tab-content">
-                <div class="glass-card">
-                    <h2>Добавить смолу</h2>
-                    <div class="input-group"><input type="text" id="resin-brand" placeholder="Производитель"></div>
-                    <div class="input-group"><input type="text" id="resin-name" placeholder="Название (ABS like, Clear...)"></div>
-                    <div class="input-group"><input type="text" id="resin-color" placeholder="Цвет"></div>
-                    <div class="input-group"><input type="number" id="resin-price" placeholder="Цена (грн за 1кг)"></div>
-                    <div class="input-group"><input type="number" step="0.01" id="resin-density" placeholder="Густота (g/cm³)"></div>
-                    <button class="action-btn" onclick="addResin()">Сохранить смолу</button>
-                </div>
-            </section>
-
-            <!-- Вкладка: Добавление набора (Админ) -->
-            <section id="admin-sets" class="tab-content">
-                <div class="glass-card">
-                    <h2>Добавить набор шахмат</h2>
-                    <div class="input-group"><input type="text" id="set-name" placeholder="Название набора"></div>
-                    <div class="input-group"><input type="text" id="set-photo" placeholder="URL фото набора"></div>
                     
-                    <div class="time-inputs">
-                        <div class="input-group"><input type="number" id="time-white" placeholder="Время печати белых (часов)"></div>
-                        <div class="input-group"><input type="number" id="time-black" placeholder="Время печати черных (часов)"></div>
+                    <div class="glass-card mt-20">
+                        <h2>База смол</h2>
+                        <div id="admin-resin-list" class="item-list"></div>
+                    </div>
+                </section>
+
+                <!-- Вкладка: НАБОРЫ -->
+                <section id="admin-sets" class="tab-content">
+                    <div class="glass-card">
+                        <h2 id="set-form-title">Добавить набор шахмат</h2>
+                        <div class="input-group"><input type="text" id="set-name" placeholder="Название набора"></div>
+                        
+                        <!-- Загрузка фото -->
+                        <div class="input-group">
+                            <label>Фотография набора:</label>
+                            <input type="file" id="set-photo-file" accept="image/*" class="file-input">
+                            <input type="hidden" id="set-photo-url">
+                            <div id="upload-preview" class="photo-preview-container hidden">
+                                <img id="preview-img" src="">
+                            </div>
+                        </div>
+                        
+                        <div class="flex-row">
+                            <div class="input-group"><input type="number" id="time-white" placeholder="Время белые (ч)"></div>
+                            <div class="input-group"><input type="number" id="time-black" placeholder="Время черные (ч)"></div>
+                        </div>
+
+                        <h3>Параметры фигур (1 шт)</h3>
+                        <div class="pieces-wrapper">
+                            <!-- Контейнеры для каждой фигуры -->
+                            <div class="piece-card">
+                                <div class="piece-title">Король</div>
+                                <input type="number" id="w-king" placeholder="Вес (г)"><input type="number" id="h-king" placeholder="Выс (мм)"><input type="number" id="d-king" placeholder="Диам (мм)">
+                            </div>
+                            <div class="piece-card">
+                                <div class="piece-title">Королева</div>
+                                <input type="number" id="w-queen" placeholder="Вес (г)"><input type="number" id="h-queen" placeholder="Выс (мм)"><input type="number" id="d-queen" placeholder="Диам (мм)">
+                            </div>
+                            <div class="piece-card">
+                                <div class="piece-title">Офицер</div>
+                                <input type="number" id="w-bishop" placeholder="Вес (г)"><input type="number" id="h-bishop" placeholder="Выс (мм)"><input type="number" id="d-bishop" placeholder="Диам (мм)">
+                            </div>
+                            <div class="piece-card">
+                                <div class="piece-title">Конь</div>
+                                <input type="number" id="w-knight" placeholder="Вес (г)"><input type="number" id="h-knight" placeholder="Выс (мм)"><input type="number" id="d-knight" placeholder="Диам (мм)">
+                            </div>
+                            <div class="piece-card">
+                                <div class="piece-title">Ладья</div>
+                                <input type="number" id="w-rook" placeholder="Вес (г)"><input type="number" id="h-rook" placeholder="Выс (мм)"><input type="number" id="d-rook" placeholder="Диам (мм)">
+                            </div>
+                            <div class="piece-card">
+                                <div class="piece-title">Пешка</div>
+                                <input type="number" id="w-pawn" placeholder="Вес (г)"><input type="number" id="h-pawn" placeholder="Выс (мм)"><input type="number" id="d-pawn" placeholder="Диам (мм)">
+                            </div>
+                        </div>
+
+                        <div class="form-actions mt-20">
+                            <button class="action-btn" id="btn-save-set" onclick="saveSet()">Сохранить набор</button>
+                            <button class="action-btn btn-cancel hidden" id="btn-cancel-set" onclick="cancelSetEdit()">Отмена</button>
+                        </div>
                     </div>
 
-                    <h3>Параметры фигур (Вес в граммах)</h3>
-                    <p class="hint">Укажите вес 1 шт. Размеры добавляются аналогично для расширения базы.</p>
-                    <div class="pieces-grid">
-                        <input type="number" id="w-king" placeholder="Король (шт)">
-                        <input type="number" id="w-queen" placeholder="Королева (шт)">
-                        <input type="number" id="w-bishop" placeholder="Офицер (шт)">
-                        <input type="number" id="w-knight" placeholder="Конь (шт)">
-                        <input type="number" id="w-rook" placeholder="Ладья (шт)">
-                        <input type="number" id="w-pawn" placeholder="Пешка (шт)">
+                    <div class="glass-card mt-20">
+                        <h2>База наборов</h2>
+                        <div id="admin-sets-list" class="item-list"></div>
                     </div>
-                    <button class="action-btn" onclick="addSet()">Сохранить набор</button>
-                </div>
-            </section>
+                </section>
+            </div>
         </main>
     </div>
     <script src="app.js"></script>
