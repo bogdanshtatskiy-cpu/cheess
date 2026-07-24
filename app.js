@@ -24,6 +24,25 @@ let currentTab = 'view';
 let editingResinId = null;
 let editingSetId = null;
 
+// --- КОНВЕРТЕРЫ ВРЕМЕНИ ---
+// Превращает ввод "3.45" (3ч 45м) в 225 минут
+function parseTimeInputToMinutes(val) {
+    if (!val) return 0;
+    const h = Math.floor(val);
+    const m = Math.round((val - h) * 100);
+    return (h * 60) + m;
+}
+
+// Превращает минуты в красивый текст "7ч 30м"
+function formatMinutesToStr(totalMins) {
+    if (!totalMins) return "0м";
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    if (h > 0 && m > 0) return `${h}ч ${m}м`;
+    if (h > 0) return `${h}ч`;
+    return `${m}м`;
+}
+
 // --- АВТОРИЗАЦИЯ И UI ---
 auth.onAuthStateChanged(user => {
     currentUser = user;
@@ -40,55 +59,45 @@ auth.onAuthStateChanged(user => {
         authBtn.onclick = openAuthModal;
         adminTabs.forEach(tab => tab.classList.add('hidden'));
         
-        // Если вышли находясь в админке - принудительно кидаем на калькулятор
         if (currentTab !== 'view') {
             document.querySelector('[data-tab="view"]').click();
         }
     }
 });
 
-function openAuthModal() {
-    document.getElementById('auth-modal-overlay').classList.remove('hidden');
-}
-
+function openAuthModal() { document.getElementById('auth-modal-overlay').classList.remove('hidden'); }
 function closeAuthModal() {
     document.getElementById('auth-modal-overlay').classList.add('hidden');
     document.getElementById('auth-email').value = '';
     document.getElementById('auth-pass').value = '';
 }
-
 function loginAdmin() {
     const email = document.getElementById('auth-email').value;
     const pass = document.getElementById('auth-pass').value;
     auth.signInWithEmailAndPassword(email, pass).catch(e => alert("Ошибка доступа: " + e.message));
 }
-
 function logoutAdmin() { auth.signOut(); }
 
-// --- НАДЕЖНАЯ НАВИГАЦИЯ ---
+// --- НАВИГАЦИЯ ---
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const targetTab = btn.dataset.tab;
         
-        // Защита админских вкладок
         if (targetTab.includes('admin') && !currentUser) {
             openAuthModal();
-            return; // Прерываем переключение, ждем логина
+            return;
         }
 
         currentTab = targetTab;
-
-        // Сброс активных стилей везде
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         
-        // Установка активных стилей на выбранные элементы
         btn.classList.add('active');
         document.getElementById(currentTab).classList.add('active');
     });
 });
 
-// --- СЛУШАТЕЛИ FIREBASE (РЕАЛ-ТАЙМ) ---
+// --- СЛУШАТЕЛИ FIREBASE ---
 db.collection("resins").orderBy("createdAt", "desc").onSnapshot(snapshot => {
     resinsDB = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     updateSelects();
@@ -264,18 +273,22 @@ function cancelSetEdit() {
 }
 
 function renderAdminSets() {
-    document.getElementById('admin-sets-list').innerHTML = setsDB.map(s => `
-        <div class="list-item">
-            <div class="list-item-info">
-                <strong>${s.name}</strong>
-                <span>Время: Б - ${s.timeWhite}ч | Ч - ${s.timeBlack}ч</span>
+    document.getElementById('admin-sets-list').innerHTML = setsDB.map(s => {
+        const tw = formatMinutesToStr(parseTimeInputToMinutes(s.timeWhite));
+        const tb = formatMinutesToStr(parseTimeInputToMinutes(s.timeBlack));
+        return `
+            <div class="list-item">
+                <div class="list-item-info">
+                    <strong>${s.name}</strong>
+                    <span>Время: Б - ${tw} | Ч - ${tb}</span>
+                </div>
+                <div class="list-actions">
+                    <button class="btn-edit" onclick="editSet('${s.id}')">Ред</button>
+                    <button class="btn-delete" onclick="deleteSet('${s.id}')">Удал</button>
+                </div>
             </div>
-            <div class="list-actions">
-                <button class="btn-edit" onclick="editSet('${s.id}')">Ред</button>
-                <button class="btn-delete" onclick="deleteSet('${s.id}')">Удал</button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // --- КАЛЬКУЛЯТОР (ЛОГИКА РАСЧЕТОВ) ---
@@ -321,21 +334,26 @@ function calculateTotal() {
         if(set.pieces && set.pieces[p]) weight += (set.pieces[p].weight * count);
     }
 
-    const wData = { cost: weight * (rWhite.price / 1000), vol: weight / rWhite.density, t: set.timeWhite };
-    const bData = { cost: weight * (rBlack.price / 1000), vol: weight / rBlack.density, t: set.timeBlack };
+    // Время в минутах
+    const wTimeMins = parseTimeInputToMinutes(set.timeWhite);
+    const bTimeMins = parseTimeInputToMinutes(set.timeBlack);
+    const totalTimeMins = wTimeMins + bTimeMins;
+
+    const wData = { cost: weight * (rWhite.price / 1000), vol: weight / rWhite.density };
+    const bData = { cost: weight * (rBlack.price / 1000), vol: weight / rBlack.density };
 
     const res = document.getElementById('results');
     res.classList.remove('hidden');
     
     res.innerHTML = `
-        <p>⚪ <strong>Белые:</strong> ${weight.toFixed(1)}г | ${wData.vol.toFixed(1)}мл | ${wData.t}ч <br>
+        <p>⚪ <strong>Белые:</strong> ${weight.toFixed(1)}г | ${wData.vol.toFixed(1)}мл | ${formatMinutesToStr(wTimeMins)} <br>
         <span style="color:var(--text-secondary)">Себестоимость:</span> <strong>${wData.cost.toFixed(2)} грн</strong></p>
         <div style="height:1px; background:var(--glass-border); margin:12px 0;"></div>
-        <p>⚫ <strong>Черные:</strong> ${weight.toFixed(1)}г | ${bData.vol.toFixed(1)}мл | ${bData.t}ч <br>
+        <p>⚫ <strong>Черные:</strong> ${weight.toFixed(1)}г | ${bData.vol.toFixed(1)}мл | ${formatMinutesToStr(bTimeMins)} <br>
         <span style="color:var(--text-secondary)">Себестоимость:</span> <strong>${bData.cost.toFixed(2)} грн</strong></p>
         
         <div class="total-highlight">Итог: ${(wData.cost + bData.cost).toFixed(2)} грн</div>
         <p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">Общий объем смолы: ${(wData.vol + bData.vol).toFixed(1)} мл</p>
-        <p style="font-size:13px; color:var(--text-secondary);">Машинное время: ${(wData.t + bData.t)} ч</p>
+        <p style="font-size:13px; color:var(--text-secondary);">Машинное время: ${formatMinutesToStr(totalTimeMins)}</p>
     `;
 }
