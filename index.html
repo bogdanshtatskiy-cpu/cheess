@@ -6,13 +6,14 @@
     <title>Chess Print Calculator</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (Compat версия) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 </head>
 <body>
+    <!-- Фоновые элементы для эффекта жидкого стекла -->
     <div class="ambient-background"></div>
     <div class="glow-orb orb-1"></div>
     <div class="glow-orb orb-2"></div>
@@ -31,63 +32,65 @@
         </header>
 
         <main>
-            <!-- Вкладка: Просмотр и расчет -->
+            <!-- Вкладка 1: Просмотр и расчет -->
             <section id="view" class="tab-content active">
                 <div class="ios-glass card">
-                    <h2 class="section-title">Калькулятор</h2>
+                    <h2 class="section-title">Калькулятор печати</h2>
                     
                     <div class="photo-preview-container" id="calc-photo-container" style="display: none;">
                         <img id="calc-set-photo" src="" alt="Set Photo">
                     </div>
 
                     <div class="input-group">
-                        <label>Набор</label>
+                        <label>Выбор набора</label>
                         <select id="select-set" onchange="updateCalcPhoto()"><option>Загрузка...</option></select>
                     </div>
                     <div class="input-group">
-                        <label>Смола (Белые)</label>
+                        <label>Смола (Белые фигуры)</label>
                         <select id="select-resin-white"></select>
                     </div>
                     <div class="input-group">
-                        <label>Смола (Черные)</label>
+                        <label>Смола (Черные фигуры)</label>
                         <select id="select-resin-black"></select>
                     </div>
-                    <button class="action-btn primary" onclick="calculateTotal()">Рассчитать</button>
+                    <button class="action-btn primary mt-10" onclick="calculateTotal()">Рассчитать смету</button>
                     
                     <div id="results" class="results-container hidden"></div>
                 </div>
             </section>
 
-            <!-- Вкладка: СМОЛЫ -->
+            <!-- Вкладка 2: База СМОЛ -->
             <section id="admin-resin" class="tab-content">
                 <div class="ios-glass card">
                     <h2 id="resin-form-title" class="section-title">Добавить смолу</h2>
-                    <div class="input-group"><input type="text" id="resin-brand" placeholder="Производитель"></div>
-                    <div class="input-group"><input type="text" id="resin-name" placeholder="Название (ABS-like...)"></div>
+                    <div class="input-group"><input type="text" id="resin-brand" placeholder="Производитель (Anycubic, Elegoo...)"></div>
+                    <div class="input-group"><input type="text" id="resin-name" placeholder="Название (ABS-like, Standard...)"></div>
                     <div class="input-group"><input type="text" id="resin-color" placeholder="Цвет"></div>
-                    <div class="input-group"><input type="number" id="resin-price" placeholder="Цена за 1кг (грн)"></div>
-                    <div class="input-group"><input type="number" step="0.01" id="resin-density" placeholder="Густота (g/cm³)"></div>
+                    <div class="flex-row">
+                        <div class="input-group"><input type="number" id="resin-price" placeholder="Цена / 1кг (грн)"></div>
+                        <div class="input-group"><input type="number" step="0.01" id="resin-density" placeholder="Густота (g/cm³)"></div>
+                    </div>
                     
                     <div class="form-actions">
-                        <button class="action-btn primary" id="btn-save-resin" onclick="saveResin()">Сохранить</button>
+                        <button class="action-btn primary" id="btn-save-resin" onclick="saveResin()">Сохранить в базу</button>
                         <button class="action-btn secondary hidden" id="btn-cancel-resin" onclick="cancelResinEdit()">Отмена</button>
                     </div>
                 </div>
                 
                 <div class="ios-glass card mt-15">
-                    <h2 class="section-title">База смол</h2>
+                    <h2 class="section-title">Список доступных смол</h2>
                     <div id="admin-resin-list" class="item-list"></div>
                 </div>
             </section>
 
-            <!-- Вкладка: НАБОРЫ -->
+            <!-- Вкладка 3: База НАБОРОВ -->
             <section id="admin-sets" class="tab-content">
                 <div class="ios-glass card">
-                    <h2 id="set-form-title" class="section-title">Добавить набор</h2>
-                    <div class="input-group"><input type="text" id="set-name" placeholder="Название набора"></div>
+                    <h2 id="set-form-title" class="section-title">Конфигурация набора</h2>
+                    <div class="input-group"><input type="text" id="set-name" placeholder="Название шахматного набора"></div>
                     
                     <div class="input-group">
-                        <label>Фотография</label>
+                        <label>Фотография для превью</label>
                         <div class="file-upload-wrapper">
                             <input type="file" id="set-photo-file" accept="image/*" class="file-input">
                         </div>
@@ -98,37 +101,18 @@
                     </div>
                     
                     <div class="flex-row">
-                        <div class="input-group"><input type="number" id="time-white" placeholder="Время белые (ч)"></div>
-                        <div class="input-group"><input type="number" id="time-black" placeholder="Время черные (ч)"></div>
+                        <div class="input-group"><input type="number" id="time-white" placeholder="Время: Белые (ч)"></div>
+                        <div class="input-group"><input type="number" id="time-black" placeholder="Время: Черные (ч)"></div>
                     </div>
 
-                    <h3 class="subsection-title">Параметры фигур (1 шт)</h3>
+                    <h3 class="subsection-title">Метрики фигур (за 1 шт)</h3>
                     <div class="pieces-wrapper">
-                        <!-- Фигуры -->
-                        <div class="piece-card">
-                            <div class="piece-title">Король</div>
-                            <input type="number" id="w-king" placeholder="Вес (г)"><input type="number" id="h-king" placeholder="H (мм)"><input type="number" id="d-king" placeholder="Ø (мм)">
-                        </div>
-                        <div class="piece-card">
-                            <div class="piece-title">Королева</div>
-                            <input type="number" id="w-queen" placeholder="Вес (г)"><input type="number" id="h-queen" placeholder="H (мм)"><input type="number" id="d-queen" placeholder="Ø (мм)">
-                        </div>
-                        <div class="piece-card">
-                            <div class="piece-title">Офицер</div>
-                            <input type="number" id="w-bishop" placeholder="Вес (г)"><input type="number" id="h-bishop" placeholder="H (мм)"><input type="number" id="d-bishop" placeholder="Ø (мм)">
-                        </div>
-                        <div class="piece-card">
-                            <div class="piece-title">Конь</div>
-                            <input type="number" id="w-knight" placeholder="Вес (г)"><input type="number" id="h-knight" placeholder="H (мм)"><input type="number" id="d-knight" placeholder="Ø (мм)">
-                        </div>
-                        <div class="piece-card">
-                            <div class="piece-title">Ладья</div>
-                            <input type="number" id="w-rook" placeholder="Вес (г)"><input type="number" id="h-rook" placeholder="H (мм)"><input type="number" id="d-rook" placeholder="Ø (мм)">
-                        </div>
-                        <div class="piece-card">
-                            <div class="piece-title">Пешка</div>
-                            <input type="number" id="w-pawn" placeholder="Вес (г)"><input type="number" id="h-pawn" placeholder="H (мм)"><input type="number" id="d-pawn" placeholder="Ø (мм)">
-                        </div>
+                        <div class="piece-card"><div class="piece-title">Король</div><input type="number" id="w-king" placeholder="Вес (г)"><input type="number" id="h-king" placeholder="H (мм)"><input type="number" id="d-king" placeholder="Ø (мм)"></div>
+                        <div class="piece-card"><div class="piece-title">Королева</div><input type="number" id="w-queen" placeholder="Вес (г)"><input type="number" id="h-queen" placeholder="H (мм)"><input type="number" id="d-queen" placeholder="Ø (мм)"></div>
+                        <div class="piece-card"><div class="piece-title">Офицер</div><input type="number" id="w-bishop" placeholder="Вес (г)"><input type="number" id="h-bishop" placeholder="H (мм)"><input type="number" id="d-bishop" placeholder="Ø (мм)"></div>
+                        <div class="piece-card"><div class="piece-title">Конь</div><input type="number" id="w-knight" placeholder="Вес (г)"><input type="number" id="h-knight" placeholder="H (мм)"><input type="number" id="d-knight" placeholder="Ø (мм)"></div>
+                        <div class="piece-card"><div class="piece-title">Ладья</div><input type="number" id="w-rook" placeholder="Вес (г)"><input type="number" id="h-rook" placeholder="H (мм)"><input type="number" id="d-rook" placeholder="Ø (мм)"></div>
+                        <div class="piece-card"><div class="piece-title">Пешка</div><input type="number" id="w-pawn" placeholder="Вес (г)"><input type="number" id="h-pawn" placeholder="H (мм)"><input type="number" id="d-pawn" placeholder="Ø (мм)"></div>
                     </div>
 
                     <div class="form-actions mt-15">
@@ -138,18 +122,18 @@
                 </div>
 
                 <div class="ios-glass card mt-15">
-                    <h2 class="section-title">База наборов</h2>
+                    <h2 class="section-title">Список наборов</h2>
                     <div id="admin-sets-list" class="item-list"></div>
                 </div>
             </section>
         </main>
     </div>
 
-    <!-- Модальное окно авторизации (Стиль iOS Alert) -->
+    <!-- Системный Alert авторизации -->
     <div id="auth-modal-overlay" class="modal-overlay hidden">
         <div class="ios-glass modal">
-            <h3>Вход в систему</h3>
-            <p>Авторизуйтесь для управления базой</p>
+            <h3>Доступ ограничен</h3>
+            <p>Требуются права администратора</p>
             <div class="input-group"><input type="email" id="auth-email" placeholder="Email"></div>
             <div class="input-group"><input type="password" id="auth-pass" placeholder="Password"></div>
             <div class="modal-actions">
