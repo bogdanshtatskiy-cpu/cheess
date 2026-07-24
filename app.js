@@ -1,3 +1,4 @@
+// --- ИНИЦИАЛИЗАЦИЯ FIREBASE ---
 const firebaseConfig = {
     apiKey: "AIzaSyAXGZBBUFANaFuLP0jHUEJqc6tobWViTxI",
     authDomain: "chessprintcalc.firebaseapp.com",
@@ -12,13 +13,14 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
+// Множители для набора (16 фигур одного цвета)
 const PIECES_MULTIPLIER = { king: 1, queen: 1, bishop: 2, knight: 2, rook: 2, pawn: 8 };
 const pieceTypes = ['king', 'queen', 'bishop', 'knight', 'rook', 'pawn'];
 
 let resinsDB = [];
 let setsDB = [];
 let currentUser = null;
-
+let currentTab = 'view';
 let editingResinId = null;
 let editingSetId = null;
 
@@ -37,8 +39,11 @@ auth.onAuthStateChanged(user => {
         authBtn.innerText = "Войти";
         authBtn.onclick = openAuthModal;
         adminTabs.forEach(tab => tab.classList.add('hidden'));
-        // Возврат на вкладку просмотра, если вышли из админки
-        document.querySelector('[data-tab="view"]').click();
+        
+        // Если вышли находясь в админке - принудительно кидаем на калькулятор
+        if (currentTab !== 'view') {
+            document.querySelector('[data-tab="view"]').click();
+        }
     }
 });
 
@@ -55,30 +60,35 @@ function closeAuthModal() {
 function loginAdmin() {
     const email = document.getElementById('auth-email').value;
     const pass = document.getElementById('auth-pass').value;
-    auth.signInWithEmailAndPassword(email, pass).catch(e => alert("Ошибка входа: " + e.message));
+    auth.signInWithEmailAndPassword(email, pass).catch(e => alert("Ошибка доступа: " + e.message));
 }
 
-function logoutAdmin() {
-    auth.signOut();
-}
+function logoutAdmin() { auth.signOut(); }
 
-// --- НАВИГАЦИЯ ---
+// --- НАДЕЖНАЯ НАВИГАЦИЯ ---
 document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => {
-            c.classList.remove('active');
-            setTimeout(() => c.style.display = 'none', 50); // плавный fade
-        });
+        const targetTab = btn.dataset.tab;
         
+        // Защита админских вкладок
+        if (targetTab.includes('admin') && !currentUser) {
+            openAuthModal();
+            return; // Прерываем переключение, ждем логина
+        }
+
+        currentTab = targetTab;
+
+        // Сброс активных стилей везде
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        // Установка активных стилей на выбранные элементы
         btn.classList.add('active');
-        const target = document.getElementById(btn.dataset.tab);
-        target.style.display = 'block';
-        setTimeout(() => target.classList.add('active'), 50);
+        document.getElementById(currentTab).classList.add('active');
     });
 });
 
-// --- БАЗА ДАННЫХ (РЕАЛ-ТАЙМ) ---
+// --- СЛУШАТЕЛИ FIREBASE (РЕАЛ-ТАЙМ) ---
 db.collection("resins").orderBy("createdAt", "desc").onSnapshot(snapshot => {
     resinsDB = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     updateSelects();
@@ -102,17 +112,18 @@ function saveResin() {
         createdAt: editingResinId ? undefined : firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    const action = editingResinId 
-        ? db.collection("resins").doc(editingResinId).update(data)
-        : db.collection("resins").add(data);
-
-    action.then(() => cancelResinEdit()).catch(e => alert("Ошибка: " + e.message));
+    if (editingResinId) {
+        db.collection("resins").doc(editingResinId).update(data)
+            .then(() => cancelResinEdit()).catch(e => alert(e.message));
+    } else {
+        db.collection("resins").add(data)
+            .then(() => cancelResinEdit()).catch(e => alert(e.message));
+    }
 }
 
 function editResin(id) {
     const r = resinsDB.find(x => x.id === id);
     if(!r) return;
-    
     editingResinId = id;
     document.getElementById('resin-form-title').innerText = "Редактирование";
     document.getElementById('resin-brand').value = r.brand;
@@ -120,20 +131,17 @@ function editResin(id) {
     document.getElementById('resin-color').value = r.color;
     document.getElementById('resin-price').value = r.price;
     document.getElementById('resin-density').value = r.density;
-    
-    document.getElementById('btn-save-resin').innerText = "Обновить";
+    document.getElementById('btn-save-resin').innerText = "Обновить базу";
     document.getElementById('btn-cancel-resin').classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function deleteResin(id) {
-    if(confirm("Удалить смолу?")) db.collection("resins").doc(id).delete();
-}
+function deleteResin(id) { if(confirm("Удалить смолу?")) db.collection("resins").doc(id).delete(); }
 
 function cancelResinEdit() {
     editingResinId = null;
     document.getElementById('resin-form-title').innerText = "Добавить смолу";
-    document.getElementById('btn-save-resin').innerText = "Сохранить";
+    document.getElementById('btn-save-resin').innerText = "Сохранить в базу";
     document.getElementById('btn-cancel-resin').classList.add('hidden');
     ['brand', 'name', 'color', 'price', 'density'].forEach(id => document.getElementById(`resin-${id}`).value = '');
 }
@@ -201,9 +209,9 @@ async function saveSet() {
         }
         cancelSetEdit();
     } catch (e) {
-        alert("Ошибка: " + e.message);
+        alert("Ошибка системы: " + e.message);
     } finally {
-        btn.innerText = editingSetId ? "Обновить" : "Сохранить набор";
+        btn.innerText = editingSetId ? "Обновить набор" : "Сохранить набор";
         btn.disabled = false;
     }
 }
@@ -211,9 +219,8 @@ async function saveSet() {
 function editSet(id) {
     const s = setsDB.find(x => x.id === id);
     if(!s) return;
-    
     editingSetId = id;
-    document.getElementById('set-form-title').innerText = "Редактирование";
+    document.getElementById('set-form-title').innerText = "Редактирование набора";
     document.getElementById('set-name').value = s.name;
     document.getElementById('time-white').value = s.timeWhite;
     document.getElementById('time-black').value = s.timeBlack;
@@ -232,18 +239,16 @@ function editSet(id) {
         }
     });
 
-    document.getElementById('btn-save-set').innerText = "Обновить";
+    document.getElementById('btn-save-set').innerText = "Обновить конфигурацию";
     document.getElementById('btn-cancel-set').classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function deleteSet(id) {
-    if(confirm("Удалить набор?")) db.collection("chess_sets").doc(id).delete();
-}
+function deleteSet(id) { if(confirm("Удалить набор из базы?")) db.collection("chess_sets").doc(id).delete(); }
 
 function cancelSetEdit() {
     editingSetId = null;
-    document.getElementById('set-form-title').innerText = "Добавить набор";
+    document.getElementById('set-form-title').innerText = "Конфигурация набора";
     document.getElementById('btn-save-set').innerText = "Сохранить набор";
     document.getElementById('btn-cancel-set').classList.add('hidden');
     document.getElementById('set-name').value = '';
@@ -263,7 +268,7 @@ function renderAdminSets() {
         <div class="list-item">
             <div class="list-item-info">
                 <strong>${s.name}</strong>
-                <span>Б: ${s.timeWhite}ч | Ч: ${s.timeBlack}ч</span>
+                <span>Время: Б - ${s.timeWhite}ч | Ч - ${s.timeBlack}ч</span>
             </div>
             <div class="list-actions">
                 <button class="btn-edit" onclick="editSet('${s.id}')">Ред</button>
@@ -273,17 +278,16 @@ function renderAdminSets() {
     `).join('');
 }
 
-// --- КАЛЬКУЛЯТОР ---
+// --- КАЛЬКУЛЯТОР (ЛОГИКА РАСЧЕТОВ) ---
 function updateSelects() {
     const rw = document.getElementById('select-resin-white');
     const rb = document.getElementById('select-resin-black');
     const ss = document.getElementById('select-set');
     
-    const rOpts = '<option value="">Выберите смолу...</option>' + resinsDB.map(r => `<option value="${r.id}">${r.brand} ${r.name} (${r.color})</option>`).join('');
+    const rOpts = '<option value="">Смола не выбрана...</option>' + resinsDB.map(r => `<option value="${r.id}">${r.brand} ${r.name} (${r.color})</option>`).join('');
     if(rw) rw.innerHTML = rOpts;
     if(rb) rb.innerHTML = rOpts;
-    
-    if(ss) ss.innerHTML = '<option value="">Выберите набор...</option>' + setsDB.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    if(ss) ss.innerHTML = '<option value="">Набор не выбран...</option>' + setsDB.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 }
 
 function updateCalcPhoto() {
@@ -305,12 +309,13 @@ function calculateTotal() {
     const rwId = document.getElementById('select-resin-white').value;
     const rbId = document.getElementById('select-resin-black').value;
 
-    if (!setId || !rwId || !rbId) { alert("Выберите набор и обе смолы!"); return; }
+    if (!setId || !rwId || !rbId) { alert("Определите набор и материалы для обеих сторон."); return; }
 
     const set = setsDB.find(s => s.id === setId);
     const rWhite = resinsDB.find(r => r.id === rwId);
     const rBlack = resinsDB.find(r => r.id === rbId);
 
+    // Подсчет массы половины набора
     let weight = 0;
     for (const [p, count] of Object.entries(PIECES_MULTIPLIER)) {
         if(set.pieces && set.pieces[p]) weight += (set.pieces[p].weight * count);
@@ -324,13 +329,13 @@ function calculateTotal() {
     
     res.innerHTML = `
         <p>⚪ <strong>Белые:</strong> ${weight.toFixed(1)}г | ${wData.vol.toFixed(1)}мл | ${wData.t}ч <br>
-        <span style="color:var(--text-secondary)">Стоимость:</span> <strong>${wData.cost.toFixed(2)} грн</strong></p>
-        <div style="height:1px; background:var(--glass-border); margin:10px 0;"></div>
+        <span style="color:var(--text-secondary)">Себестоимость:</span> <strong>${wData.cost.toFixed(2)} грн</strong></p>
+        <div style="height:1px; background:var(--glass-border); margin:12px 0;"></div>
         <p>⚫ <strong>Черные:</strong> ${weight.toFixed(1)}г | ${bData.vol.toFixed(1)}мл | ${bData.t}ч <br>
-        <span style="color:var(--text-secondary)">Стоимость:</span> <strong>${bData.cost.toFixed(2)} грн</strong></p>
+        <span style="color:var(--text-secondary)">Себестоимость:</span> <strong>${bData.cost.toFixed(2)} грн</strong></p>
         
-        <div class="total-highlight">Итого: ${(wData.cost + bData.cost).toFixed(2)} грн</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">Общий объем: ${(wData.vol + bData.vol).toFixed(1)} мл</p>
-        <p style="font-size:13px; color:var(--text-secondary);">Общее время: ${(wData.t + bData.t)} ч</p>
+        <div class="total-highlight">Итог: ${(wData.cost + bData.cost).toFixed(2)} грн</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">Общий объем смолы: ${(wData.vol + bData.vol).toFixed(1)} мл</p>
+        <p style="font-size:13px; color:var(--text-secondary);">Машинное время: ${(wData.t + bData.t)} ч</p>
     `;
 }
