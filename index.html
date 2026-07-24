@@ -2,47 +2,89 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>T-Shirt Mockup Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chess Print Calculator</title>
     <link rel="stylesheet" href="style.css">
-    <script src="fabric.min.js"></script>
+    <!-- Сюда позже нужно будет вставить скрипты Firebase -->
 </head>
 <body>
+    <div class="background-mesh"></div>
+    
     <div class="app-container">
-    <div class="canvas-container-wrapper">
-        <div id="front-view">
-            <canvas id="tshirt-canvas-front" width="500" height="600"></canvas>
-        </div>
-        <div id="back-view" style="display: none;">
-            <canvas id="tshirt-canvas-back" width="500" height="600"></canvas>
-        </div>
+        <header class="glass-header">
+            <h1>ChessCalc</h1>
+            <nav>
+                <button class="nav-btn active" data-tab="view">Калькулятор</button>
+                <button class="nav-btn" data-tab="admin-resin">Смолы</button>
+                <button class="nav-btn" data-tab="admin-sets">Наборы</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Вкладка: Просмотр и расчет -->
+            <section id="view" class="tab-content active">
+                <div class="glass-card">
+                    <h2>Расчет стоимости набора</h2>
+                    <div class="input-group">
+                        <label>Выберите набор:</label>
+                        <select id="select-set"></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Смола (Белые фигуры):</label>
+                        <select id="select-resin-white"></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Смола (Черные фигуры):</label>
+                        <select id="select-resin-black"></select>
+                    </div>
+                    <button class="action-btn" onclick="calculateTotal()">Рассчитать</button>
+                    
+                    <div id="results" class="results-container hidden">
+                        <!-- Сюда JS выведет результаты -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Вкладка: Добавление смолы (Админ) -->
+            <section id="admin-resin" class="tab-content">
+                <div class="glass-card">
+                    <h2>Добавить смолу</h2>
+                    <div class="input-group"><input type="text" id="resin-brand" placeholder="Производитель"></div>
+                    <div class="input-group"><input type="text" id="resin-name" placeholder="Название (ABS like, Clear...)"></div>
+                    <div class="input-group"><input type="text" id="resin-color" placeholder="Цвет"></div>
+                    <div class="input-group"><input type="number" id="resin-price" placeholder="Цена (грн за 1кг)"></div>
+                    <div class="input-group"><input type="number" step="0.01" id="resin-density" placeholder="Густота (g/cm³)"></div>
+                    <button class="action-btn" onclick="addResin()">Сохранить смолу</button>
+                </div>
+            </section>
+
+            <!-- Вкладка: Добавление набора (Админ) -->
+            <section id="admin-sets" class="tab-content">
+                <div class="glass-card">
+                    <h2>Добавить набор шахмат</h2>
+                    <div class="input-group"><input type="text" id="set-name" placeholder="Название набора"></div>
+                    <div class="input-group"><input type="text" id="set-photo" placeholder="URL фото набора"></div>
+                    
+                    <div class="time-inputs">
+                        <div class="input-group"><input type="number" id="time-white" placeholder="Время печати белых (часов)"></div>
+                        <div class="input-group"><input type="number" id="time-black" placeholder="Время печати черных (часов)"></div>
+                    </div>
+
+                    <h3>Параметры фигур (Вес в граммах)</h3>
+                    <p class="hint">Укажите вес 1 шт. Размеры добавляются аналогично для расширения базы.</p>
+                    <div class="pieces-grid">
+                        <input type="number" id="w-king" placeholder="Король (шт)">
+                        <input type="number" id="w-queen" placeholder="Королева (шт)">
+                        <input type="number" id="w-bishop" placeholder="Офицер (шт)">
+                        <input type="number" id="w-knight" placeholder="Конь (шт)">
+                        <input type="number" id="w-rook" placeholder="Ладья (шт)">
+                        <input type="number" id="w-pawn" placeholder="Пешка (шт)">
+                    </div>
+                    <button class="action-btn" onclick="addSet()">Сохранить набор</button>
+                </div>
+            </section>
+        </main>
     </div>
-
-    <div class="controls-panel">
-        <h2>Создай свой дизайн</h2>
-        
-        <div class="control-group view-toggle">
-            <input type="radio" id="view-front" name="shirt-view" value="front" checked>
-            <label for="view-front" class="toggle-btn">Спереди</label>
-            
-            <input type="radio" id="view-back" name="shirt-view" value="back">
-            <label for="view-back" class="toggle-btn">Сзади</label>
-        </div>
-        
-        <div class="control-group">
-            <label for="shirt-color">Цвет футболки:</label>
-            <input type="color" id="shirt-color" value="#ffffff">
-        </div>
-
-        <div class="control-group">
-            <label for="image-upload" class="custom-file-upload">
-                Загрузить принт
-            </label>
-            <input type="file" id="image-upload" accept="image/*">
-        </div>
-
-        <button id="download-btn" class="primary-btn">Скачать мокап</button>
-    </div> </div> <script src="script.js"></script>
-
+    <script src="app.js"></script>
 </body>
 </html>
